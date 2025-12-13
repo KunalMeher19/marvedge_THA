@@ -108,6 +108,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                         "-ss", startTime.toString(),
                         "-t", duration.toString(),
                         "-c:v", "mpeg4",
+                        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
                         "-c:a", "aac",
                         outputName
                     ]);
