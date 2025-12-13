@@ -21,12 +21,12 @@ export default function Home() {
     setUploading(true);
     try {
       const formData = new FormData();
-      const ext = blob.type.includes("webm") ? "webm" : "mp4";
-      const filename = `recording.${ext}`;
-      // Explicitly create file to guarantee type and name props
-      const file = new File([blob], filename, { type: blob.type });
+      // Always use .webm extension and MIME type (trimmed videos are always WebM)
+      const filename = "recording.webm";
+      // ✅ CRITICAL: Explicitly set type to "video/webm" - don't rely on blob.type
+      const file = new File([blob], filename, { type: "video/webm" });
 
-      console.log("Uploading file:", file.name, file.type, file.size);
+      console.log("📤 Uploading file:", file.name, file.type, file.size);
       formData.append("file", file);
       // Estimate duration or pass it if Editor provides it
       // For now, simple blob size approximation or we update Editor to pass duration.

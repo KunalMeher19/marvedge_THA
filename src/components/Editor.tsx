@@ -16,6 +16,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
     const [ffmpeg, setFFmpeg] = useState<FFmpeg | null>(null);
     const [loaded, setLoaded] = useState(false);
     const [processing, setProcessing] = useState(false);
+    const [trimmedBlob, setTrimmedBlob] = useState<Blob | null>(null);
 
     // Video state
     const videoRef = useRef<HTMLVideoElement>(null);
@@ -103,6 +104,12 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
             const data = await ffmpeg.readFile("output.webm");
             const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
 
+            // ✅ DEBUG: Log trimmed blob properties
+            console.log("✂️ Trimmed blob:", newBlob.size, newBlob.type);
+
+            // Store trimmed blob for download test
+            setTrimmedBlob(newBlob);
+
             if (onSave) onSave(newBlob);
         } catch (err) {
             console.error("Trim error:", err);
@@ -119,6 +126,13 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                 ]);
                 const data = await ffmpeg.readFile("output.webm");
                 const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
+
+                // ✅ DEBUG: Log trimmed blob properties (retry path)
+                console.log("✂️ Trimmed blob (retry):", newBlob.size, newBlob.type);
+
+                // Store trimmed blob for download test
+                setTrimmedBlob(newBlob);
+
                 if (onSave) onSave(newBlob);
             } catch (retryErr) {
                 console.error("Retry failed:", retryErr);
@@ -229,18 +243,25 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                     </div>
 
                     <div className="flex justify-between items-center pt-4 border-t border-gray-800">
-                        {/* DEBUG DOWNLOAD */}
+                        {/* DEBUG: Download trimmed blob before upload */}
                         <button
                             onClick={() => {
-                                if (!videoRef.current?.src) return;
+                                if (!trimmedBlob) {
+                                    alert("Please trim the video first by clicking 'Save Changes'");
+                                    return;
+                                }
                                 const a = document.createElement("a");
-                                a.href = videoRef.current.src;
-                                a.download = "debug_trimmed.webm";
+                                a.href = URL.createObjectURL(trimmedBlob);
+                                a.download = "test-trimmed.webm";
                                 a.click();
+                                // Clean up URL after download
+                                setTimeout(() => URL.revokeObjectURL(a.href), 100);
                             }}
-                            className="text-xs text-yellow-500 hover:text-yellow-400 underline"
+                            disabled={!trimmedBlob}
+                            className="text-xs text-yellow-500 hover:text-yellow-400 underline disabled:opacity-50 disabled:cursor-not-allowed"
+                            title="Download the trimmed video to test it before upload"
                         >
-                            (Debug) Download Trimmed
+                            🧪 Download Test Before Upload
                         </button>
 
                         <div className="flex gap-3">
