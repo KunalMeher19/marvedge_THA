@@ -57,21 +57,38 @@ export default function Recorder({ onComplete }: RecorderProps) {
                 videoPreviewRef.current.srcObject = combinedStream;
             }
 
+            // Determine supported mime type
+            const mimeTypes = [
+                "video/webm; codecs=vp8,opus",
+                "video/webm; codecs=vp9,opus",
+                "video/webm",
+                "video/mp4"
+            ];
+
+            const selectedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || "video/webm";
+            console.log("Using MimeType:", selectedMimeType);
+
             const mediaRecorder = new MediaRecorder(combinedStream, {
-                mimeType: "video/webm; codecs=vp8,opus",
+                mimeType: selectedMimeType,
             });
 
             mediaRecorderRef.current = mediaRecorder;
 
             mediaRecorder.ondataavailable = (event) => {
+                console.log("Data chunk available:", event.data.size);
                 if (event.data.size > 0) {
                     chunksRef.current.push(event.data);
                 }
             };
 
             mediaRecorder.onstop = () => {
-                const blob = new Blob(chunksRef.current, { type: "video/webm" });
+                const blob = new Blob(chunksRef.current, { type: selectedMimeType });
                 console.log("Recording stopped. Total chunks:", chunksRef.current.length, "Blob size:", blob.size);
+
+                if (blob.size === 0) {
+                    alert("Recording failed: No data was captured. Please ensure you selected a valid screen/window.");
+                    return;
+                }
 
                 if (onComplete) {
                     onComplete(blob);
