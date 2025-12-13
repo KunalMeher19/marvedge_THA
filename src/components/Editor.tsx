@@ -71,52 +71,58 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
             // Process video
             const duration = endTime - startTime;
 
-            // Log mime type of input
-            console.log("Editor Input Blob:", inputBlob.type, inputBlob.size);
+            console.log("Starting transcoding. Input:", inputBlob.type, inputBlob.size);
 
             try {
+                // Attempt 1: Try standard H.264 encoding (Best for MP4)
+                console.log("Attempting H.264 encoding...");
                 await ffmpeg.exec([
                     "-i", inputName,
                     "-ss", startTime.toString(),
                     "-t", duration.toString(),
-                    "-c:v", "copy", // Try copy first
-                    "-c:a", "copy",
+                    "-c:v", "libx264",
+                    "-preset", "ultrafast",
+                    "-c:a", "aac",
                     outputName
                 ]);
             } catch (e) {
-                console.warn("Copy failed, trying strict re-encode...", e);
-                // Fallback to VP9/Opus if copy fails
-                throw e;
+                console.warn("H.264 encoding failed, trying MPEG4...", e);
+                try {
+                    // Attempt 2: Try MPEG4 encoding (Older but standard MP4)
+                    await ffmpeg.exec([
+                        "-i", inputName,
+                        "-ss", startTime.toString(),
+                        "-t", duration.toString(),
+                        "-c:v", "mpeg4",
+                        "-c:a", "aac",
+                        outputName
+                    ]);
+                } catch (e2) {
+                    console.warn("MPEG4 encoding failed, falling back to WebM copy...", e2);
+                    // Attempt 3: Fallback to WebM (VP8/VP9) if MP4 fails completely
+                    await ffmpeg.exec([
+                        "-i", "input.webm",
+                        "-ss", startTime.toString(),
+                        "-t", duration.toString(),
+                        "-c:v", "copy",
+                        "-c:a", "copy",
+                        "output.webm"
+                    ]);
+                    const data = await ffmpeg.readFile("output.webm");
+                    const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
+                    if (onSave) onSave(newBlob);
+                    return;
+                }
             }
 
             const data = await ffmpeg.readFile(outputName);
-            // @ts-expect-error - BlobPart type mismatch in some environments
-            const newBlob = new Blob([data as any], { type: "video/mp4" });
+            const newBlob = new Blob([data as unknown as BlobPart], { type: "video/mp4" });
 
             if (onSave) onSave(newBlob);
 
         } catch (err) {
-            console.error("Trim error:", err);
-            // Fallback: If MP4 fails, try reliable WebM re-encode
-            try {
-                console.log("MP4 failed, falling back to WebM repair...");
-                await ffmpeg.exec([
-                    "-i", "input.webm",
-                    "-ss", startTime.toString(),
-                    "-t", (endTime - startTime).toString(),
-                    "-c:v", "libvpx", // VP8 is very compatible
-                    "-c:a", "libvorbis",
-                    "output_repair.webm"
-                ]);
-                const data = await ffmpeg.readFile("output_repair.webm");
-                // @ts-expect-error - BlobPart type mismatch in some environments
-                const newBlob = new Blob([data as any], { type: "video/webm" });
-                // Note: Passing webm here but page might expect mp4. Extension is handled in page.tsx
-                if (onSave) onSave(newBlob);
-            } catch (retryErr) {
-                console.error("Retry failed:", retryErr);
-                alert("Could not process video. Keep clip short.");
-            }
+            console.error("Trim/Transcode fatal error:", err);
+            alert("Could not process video. Try a shorter clip or refresh.");
         } finally {
             setProcessing(false);
         }
