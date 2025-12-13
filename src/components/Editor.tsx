@@ -29,9 +29,15 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
     useEffect(() => {
         // Set initial end time when video metadata is loaded
-        if (videoRef.current) {
+        if (videoRef.current && inputBlob) {
+            console.log("Editor received blob:", inputBlob.size, inputBlob.type);
             const url = URL.createObjectURL(inputBlob);
             videoRef.current.src = url;
+
+            // Cleanup function for object URL
+            return () => {
+                URL.revokeObjectURL(url);
+            };
         }
     }, [inputBlob]);
 
@@ -88,7 +94,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
             ]);
 
             const data = await ffmpeg.readFile(outputName);
-            // @ts-expect-error - Uint8Array/Blob casting
+            // @ts-expect-error - Uint8Array vs BlobPart
             const newBlob = new Blob([data as any], { type: "video/webm" });
 
             if (onSave) onSave(newBlob);
@@ -103,7 +109,6 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
     // Check for SharedArrayBuffer support (needed for FFmpeg)
     useEffect(() => {
-        // @ts-expect-error - crossOriginIsolated check
         if (typeof window !== 'undefined' && !window.crossOriginIsolated) {
             console.warn("SharedArrayBuffer is not available. COOP/COEP headers required.");
         }

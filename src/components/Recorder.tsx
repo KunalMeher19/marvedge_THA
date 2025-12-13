@@ -12,13 +12,13 @@ export default function Recorder({ onComplete }: RecorderProps) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
-    const [recordedChunks, setRecordedChunks] = useState<Blob[]>([]);
     const [duration, setDuration] = useState(0);
     const [permissionError, setPermissionError] = useState<string | null>(null);
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
     const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
+    const chunksRef = useRef<Blob[]>([]); // Use ref for chunks
 
     useEffect(() => {
         return () => {
@@ -29,26 +29,11 @@ export default function Recorder({ onComplete }: RecorderProps) {
         };
     }, [stream]);
 
-    // This useEffect sets up the onstop handler for the MediaRecorder.
-    // It will re-run if recordedChunks or onComplete changes, ensuring the
-    // onstop handler always has access to the latest recordedChunks and onComplete prop.
-    useEffect(() => {
-        if (!mediaRecorderRef.current) return;
-
-        mediaRecorderRef.current.onstop = () => {
-            const blob = new Blob(recordedChunks, { type: "video/webm" });
-            if (onComplete) {
-                onComplete(blob);
-            }
-            setRecordedChunks([]); // Reset chunks for next recording
-            setDuration(0); // Reset duration
-        };
-    }, [recordedChunks, onComplete]);
-
 
     const startRecording = async () => {
         try {
             setPermissionError(null);
+            chunksRef.current = []; // Reset chunks
 
             const videoStream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
@@ -80,15 +65,21 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             mediaRecorder.ondataavailable = (event) => {
                 if (event.data.size > 0) {
-                    setRecordedChunks((prev) => [...prev, event.data]);
+                    chunksRef.current.push(event.data);
                 }
             };
 
-            // The onstop handler is now managed by a separate useEffect to ensure
-            // it closes over the latest recordedChunks and onComplete prop.
-            // mediaRecorder.onstop = () => {
-            //     // Cleanup logic will go here (handle stopping tracks)
-            // };
+            mediaRecorder.onstop = () => {
+                const blob = new Blob(chunksRef.current, { type: "video/webm" });
+                console.log("Recording stopped. Total chunks:", chunksRef.current.length, "Blob size:", blob.size);
+
+                if (onComplete) {
+                    onComplete(blob);
+                }
+
+                chunksRef.current = [];
+                setDuration(0);
+            };
 
             mediaRecorder.start(1000); // Collect 1s chunks
             setIsRecording(true);
@@ -128,7 +119,6 @@ export default function Recorder({ onComplete }: RecorderProps) {
             setIsRecording(false);
             setIsPaused(false);
             setStream(null);
-            // The onComplete call and chunk reset are now handled in the mediaRecorder.onstop event.
         }
     };
 
@@ -166,7 +156,7 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             {/* PREVIEW AREA */}
             <div className="relative w-full aspect-video bg-gray-900 rounded-lg overflow-hidden shadow-2xl border border-gray-800 group">
-                {!isRecording && !recordedChunks.length && (
+                {!isRecording && (
                     <div className="absolute inset-0 flex flex-col items-center justify-center text-gray-500">
                         <Video className="w-16 h-16 mb-4 opacity-50" />
                         <p className="text-lg">Ready to Record</p>
