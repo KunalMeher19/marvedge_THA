@@ -62,32 +62,52 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
             await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
 
-            // ffmpeg -i input.webm -ss <start> -to <end> -c copy output.webm
-            // Note: -c copy is fast but inaccurate for start times (keyframes).
-            // For browser MVP, we might re-encode or use fast seek.
-            // Trying re-encoding for precision: -c:v libvpx-vp9
+            // Re-encoding ensures correct timestamps and playability, 
+            // even if slower than stream copy.
+            // -ss before -i is faster seeking.
+            // -t is duration.
+            // Using -c:v libvpx (VP8) or keeping it default (often h264 if not specified, but webm container needs vpx/vorbis/opus)
+            // Safest for webm: -c copy if possible, but if not:
 
+            // Attempt 1: Stream Copy (Fastest)
+            // await ffmpeg.exec(["-ss", startTime.toString(), "-i", inputName, "-t", (endTime - startTime).toString(), "-c", "copy", outputName]);
+
+            // Attempt 2: Re-encode (Reliable)
+            // The browser recorder produces variable frame rate webm which hates stream copy.
+            // We must re-encode to fix timestamps.
             const duration = endTime - startTime;
 
             await ffmpeg.exec([
                 "-i", inputName,
                 "-ss", startTime.toString(),
                 "-t", duration.toString(),
-                "-c", "copy", // Fast, might handle keyframes poorly.
+                "-c:v", "libvpx-vp9",
+                "-c:a", "libopus", // Re-encode audio too
+                "-b:v", "2M", // Decent bitrate
                 outputName
             ]);
 
             const data = await ffmpeg.readFile(outputName);
-            const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
+            // @ts-expect-error - Uint8Array/Blob casting
+            const newBlob = new Blob([data as any], { type: "video/webm" });
 
             if (onSave) onSave(newBlob);
 
         } catch (err) {
-            console.error(err);
+            console.error("Trim error:", err);
+            alert("Error processing video. See console.");
         } finally {
             setProcessing(false);
         }
     };
+
+    // Check for SharedArrayBuffer support (needed for FFmpeg)
+    useEffect(() => {
+        // @ts-expect-error - crossOriginIsolated check
+        if (typeof window !== 'undefined' && !window.crossOriginIsolated) {
+            console.warn("SharedArrayBuffer is not available. COOP/COEP headers required.");
+        }
+    }, []);
 
     return (
         <div className="w-full max-w-4xl mx-auto p-6 bg-gray-900 rounded-xl border border-gray-800">
