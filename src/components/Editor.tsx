@@ -95,6 +95,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
                     "-pix_fmt", "yuv420p", // Critical for broad compatibility (Windows/QuickTime)
+                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", // Fix odd dimensions for H.264
                     "-c:a", "aac",
                     outputName
                 ]);
@@ -148,6 +149,8 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
         }
     }, []);
 
+    const [errorMsg, setErrorMsg] = useState<string | null>(null);
+
     return (
         <div className="w-full max-w-4xl mx-auto p-6 bg-gray-900 rounded-xl border border-gray-800">
             <h3 className="text-xl font-bold mb-4 flex items-center gap-2">
@@ -164,14 +167,24 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                 <div className="space-y-6">
                     <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
                         <video
+                            key={inputBlob.size} // Force re-render on new blob
                             ref={videoRef}
                             controls
                             playsInline
                             preload="auto"
                             className="w-full h-full"
                             onLoadedMetadata={onLoadedMetadata}
-                            onError={onError}
+                            onError={(e) => {
+                                const err = (e.target as HTMLVideoElement).error;
+                                setErrorMsg(`Video Error: ${err?.code} - ${err?.message}`);
+                                onError(e);
+                            }}
                         />
+                        {errorMsg && (
+                            <div className="absolute top-0 left-0 bg-red-600/90 text-white p-2 text-xs">
+                                {errorMsg}
+                            </div>
+                        )}
                     </div>
 
                     {/* Timeline UI */}
