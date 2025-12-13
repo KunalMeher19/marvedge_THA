@@ -34,6 +34,9 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
             const url = URL.createObjectURL(inputBlob);
             videoRef.current.src = url;
 
+            // Force load
+            videoRef.current.load();
+
             // Cleanup function for object URL
             return () => {
                 URL.revokeObjectURL(url);
@@ -43,9 +46,18 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
     const onLoadedMetadata = () => {
         if (videoRef.current) {
-            setVideoDuration(videoRef.current.duration);
-            setEndTime(videoRef.current.duration);
+            console.log("Metadata loaded. Duration:", videoRef.current.duration);
+            const dur = videoRef.current.duration;
+            if (isFinite(dur)) {
+                setVideoDuration(dur);
+                setEndTime(dur);
+            }
         }
+    };
+
+    // Add error handler
+    const onError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
+        console.error("Video player error:", videoRef.current?.error, e);
     };
 
     const load = async () => {
@@ -82,6 +94,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                     "-t", duration.toString(),
                     "-c:v", "libx264",
                     "-preset", "ultrafast",
+                    "-pix_fmt", "yuv420p", // Critical for broad compatibility (Windows/QuickTime)
                     "-c:a", "aac",
                     outputName
                 ]);
@@ -153,8 +166,11 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                         <video
                             ref={videoRef}
                             controls
+                            playsInline
+                            preload="auto"
                             className="w-full h-full"
                             onLoadedMetadata={onLoadedMetadata}
+                            onError={onError}
                         />
                     </div>
 
