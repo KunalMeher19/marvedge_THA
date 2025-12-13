@@ -17,9 +17,10 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
-    const chunksRef = useRef<Blob[]>([]); // Use ref for chunks
+    // Removed timerIntervalRef, using useEffect instead
+    const chunksRef = useRef<Blob[]>([]);
 
-    // Timer Logic
+    // Timer Logic using useEffect - More robust than manual intervals
     useEffect(() => {
         let interval: NodeJS.Timeout | undefined;
         if (isRecording && !isPaused) {
@@ -41,7 +42,6 @@ export default function Recorder({ onComplete }: RecorderProps) {
         };
     }, [stream]);
 
-
     const startRecording = async () => {
         try {
             setPermissionError(null);
@@ -50,14 +50,13 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             const videoStream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
-                audio: true, // Capture system audio
+                audio: true,
             });
 
             const audioStream = await navigator.mediaDevices.getUserMedia({
-                audio: true, // Capture microphone
+                audio: true,
             });
 
-            // Combine streams
             const tracks = [
                 ...videoStream.getVideoTracks(),
                 ...audioStream.getAudioTracks(),
@@ -88,7 +87,6 @@ export default function Recorder({ onComplete }: RecorderProps) {
             mediaRecorderRef.current = mediaRecorder;
 
             mediaRecorder.ondataavailable = (event) => {
-                console.log("Chunk:", event.data.size);
                 if (event.data.size > 0) {
                     chunksRef.current.push(event.data);
                 }
@@ -96,19 +94,22 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunksRef.current, { type: selectedMimeType });
-                console.log("Stop. Chunks:", chunksRef.current.length, "Size:", blob.size);
+                console.log("Recording stopped. Total chunks:", chunksRef.current.length, "Blob size:", blob.size);
 
                 if (blob.size === 0) {
-                    alert("Recording failed: No data captured.");
+                    alert("Recording failed: No data captured. Please ensure you picked a valid screen.");
                     return;
                 }
 
-                if (onComplete) onComplete(blob);
+                if (onComplete) {
+                    onComplete(blob);
+                }
+
                 chunksRef.current = [];
                 setDuration(0);
             };
 
-            mediaRecorder.start(1000); // Collect 1s chunks
+            mediaRecorder.start(1000);
             setIsRecording(true);
             setIsPaused(false);
 
@@ -118,19 +119,25 @@ export default function Recorder({ onComplete }: RecorderProps) {
             };
 
         } catch (err: unknown) {
-            console.error("Start error:", err);
-            // @ts-expect-error
-            setPermissionError(err.message || "Failed to start");
+            console.error("Error starting recording:", err);
+            // @ts-expect-error - err is unknown
+            if (err.name === "NotAllowedError") {
+                setPermissionError("Screen recording permission denied.");
+            } else {
+                // @ts-expect-error - err key access
+                setPermissionError("Could not start recording. " + err.message);
+            }
         }
     };
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
-            // Cleanup stream tracks
+            // Stream cleanup handled by effect when stream is set to null
             if (stream) {
-                stream.getTracks().forEach(track => track.stop());
+                stream.getTracks().forEach((track) => track.stop());
             }
+
             setIsRecording(false);
             setIsPaused(false);
             setStream(null);

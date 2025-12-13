@@ -68,31 +68,29 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
             await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
 
-            // Re-encoding to MP4 for compatibility
-            // Note: ffmpeg.wasm usage depends on the loaded core.
-            // If libx264 is missing, we might need to stick to WebM or Use mpeg4.
-            // Let's try to produce a standardized WebM (VP9) first which is reliable in browser.
-            // MP4 (H.264) is ideal but might fail in basic WASM builds.
-
-            // However, the user wants "something we can play".
-            // Let's try to OUTPUT MP4 container.
-
+            // Process video
             const duration = endTime - startTime;
 
-            await ffmpeg.exec([
-                "-i", inputName,
-                "-ss", startTime.toString(),
-                "-t", duration.toString(),
-                "-c:v", "copy", // Try copy first to keep quality and speed
-                "-c:a", "copy",
-                outputName
-            ]);
+            // Log mime type of input
+            console.log("Editor Input Blob:", inputBlob.type, inputBlob.size);
 
-            // If copy fails or is incompatible, we might need re-encoding
-            // await ffmpeg.exec(["-i", inputName, ... "-c:v", "libvpx-vp9", outputName]);
+            try {
+                await ffmpeg.exec([
+                    "-i", inputName,
+                    "-ss", startTime.toString(),
+                    "-t", duration.toString(),
+                    "-c:v", "copy", // Try copy first
+                    "-c:a", "copy",
+                    outputName
+                ]);
+            } catch (e) {
+                console.warn("Copy failed, trying strict re-encode...", e);
+                // Fallback to VP9/Opus if copy fails
+                throw e;
+            }
 
             const data = await ffmpeg.readFile(outputName);
-            // @ts-expect-error - Uint8Array vs BlobPart
+            // @ts-expect-error - BlobPart type mismatch in some environments
             const newBlob = new Blob([data as any], { type: "video/mp4" });
 
             if (onSave) onSave(newBlob);
@@ -111,12 +109,13 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                     "output_repair.webm"
                 ]);
                 const data = await ffmpeg.readFile("output_repair.webm");
-                // @ts-expect-error
+                // @ts-expect-error - BlobPart type mismatch in some environments
                 const newBlob = new Blob([data as any], { type: "video/webm" });
+                // Note: Passing webm here but page might expect mp4. Extension is handled in page.tsx
                 if (onSave) onSave(newBlob);
             } catch (retryErr) {
                 console.error("Retry failed:", retryErr);
-                alert("Could not process video. Please try a shorter clip or different browser.");
+                alert("Could not process video. Keep clip short.");
             }
         } finally {
             setProcessing(false);
