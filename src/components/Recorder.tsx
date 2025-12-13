@@ -4,7 +4,11 @@ import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { Pause, Play, Square, Video, Mic } from "lucide-react";
 
-export default function Recorder() {
+interface RecorderProps {
+    onComplete?: (blob: Blob) => void;
+}
+
+export default function Recorder({ onComplete }: RecorderProps) {
     const [isRecording, setIsRecording] = useState(false);
     const [isPaused, setIsPaused] = useState(false);
     const [stream, setStream] = useState<MediaStream | null>(null);
@@ -24,6 +28,23 @@ export default function Recorder() {
             }
         };
     }, [stream]);
+
+    // This useEffect sets up the onstop handler for the MediaRecorder.
+    // It will re-run if recordedChunks or onComplete changes, ensuring the
+    // onstop handler always has access to the latest recordedChunks and onComplete prop.
+    useEffect(() => {
+        if (!mediaRecorderRef.current) return;
+
+        mediaRecorderRef.current.onstop = () => {
+            const blob = new Blob(recordedChunks, { type: "video/webm" });
+            if (onComplete) {
+                onComplete(blob);
+            }
+            setRecordedChunks([]); // Reset chunks for next recording
+            setDuration(0); // Reset duration
+        };
+    }, [recordedChunks, onComplete]);
+
 
     const startRecording = async () => {
         try {
@@ -63,9 +84,11 @@ export default function Recorder() {
                 }
             };
 
-            mediaRecorder.onstop = () => {
-                // Cleanup logic will go here (handle stopping tracks)
-            };
+            // The onstop handler is now managed by a separate useEffect to ensure
+            // it closes over the latest recordedChunks and onComplete prop.
+            // mediaRecorder.onstop = () => {
+            //     // Cleanup logic will go here (handle stopping tracks)
+            // };
 
             mediaRecorder.start(1000); // Collect 1s chunks
             setIsRecording(true);
@@ -103,7 +126,7 @@ export default function Recorder() {
             setIsRecording(false);
             setIsPaused(false);
             setStream(null);
-            // Trigger completion logic (pass blob to parent or state)
+            // The onComplete call and chunk reset are now handled in the mediaRecorder.onstop event.
         }
     };
 
