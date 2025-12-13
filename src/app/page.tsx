@@ -21,7 +21,7 @@ export default function Home() {
     setUploading(true);
     try {
       const formData = new FormData();
-      formData.append("file", blob, "recording.webm");
+      formData.append("file", blob, "recording.mp4");
       // Estimate duration or pass it if Editor provides it
       // For now, simple blob size approximation or we update Editor to pass duration.
       // Let's just send 0 or calculated in backend if possible (backend doesn't fully parse yet).

@@ -64,44 +64,60 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
         try {
             const inputName = "input.webm";
-            const outputName = "output.webm";
+            const outputName = "output.mp4";
 
             await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
 
-            // Re-encoding ensures correct timestamps and playability, 
-            // even if slower than stream copy.
-            // -ss before -i is faster seeking.
-            // -t is duration.
-            // Using -c:v libvpx (VP8) or keeping it default (often h264 if not specified, but webm container needs vpx/vorbis/opus)
-            // Safest for webm: -c copy if possible, but if not:
+            // Re-encoding to MP4 for compatibility
+            // Note: ffmpeg.wasm usage depends on the loaded core.
+            // If libx264 is missing, we might need to stick to WebM or Use mpeg4.
+            // Let's try to produce a standardized WebM (VP9) first which is reliable in browser.
+            // MP4 (H.264) is ideal but might fail in basic WASM builds.
 
-            // Attempt 1: Stream Copy (Fastest)
-            // await ffmpeg.exec(["-ss", startTime.toString(), "-i", inputName, "-t", (endTime - startTime).toString(), "-c", "copy", outputName]);
+            // However, the user wants "something we can play".
+            // Let's try to OUTPUT MP4 container.
 
-            // Attempt 2: Re-encode (Reliable)
-            // The browser recorder produces variable frame rate webm which hates stream copy.
-            // We must re-encode to fix timestamps.
             const duration = endTime - startTime;
 
             await ffmpeg.exec([
                 "-i", inputName,
                 "-ss", startTime.toString(),
                 "-t", duration.toString(),
-                "-c:v", "libvpx-vp9",
-                "-c:a", "libopus", // Re-encode audio too
-                "-b:v", "2M", // Decent bitrate
+                "-c:v", "copy", // Try copy first to keep quality and speed
+                "-c:a", "copy",
                 outputName
             ]);
 
+            // If copy fails or is incompatible, we might need re-encoding
+            // await ffmpeg.exec(["-i", inputName, ... "-c:v", "libvpx-vp9", outputName]);
+
             const data = await ffmpeg.readFile(outputName);
             // @ts-expect-error - Uint8Array vs BlobPart
-            const newBlob = new Blob([data as any], { type: "video/webm" });
+            const newBlob = new Blob([data as any], { type: "video/mp4" });
 
             if (onSave) onSave(newBlob);
 
         } catch (err) {
             console.error("Trim error:", err);
-            alert("Error processing video. See console.");
+            // Fallback: If MP4 fails, try reliable WebM re-encode
+            try {
+                console.log("MP4 failed, falling back to WebM repair...");
+                await ffmpeg.exec([
+                    "-i", "input.webm",
+                    "-ss", startTime.toString(),
+                    "-t", (endTime - startTime).toString(),
+                    "-c:v", "libvpx", // VP8 is very compatible
+                    "-c:a", "libvorbis",
+                    "output_repair.webm"
+                ]);
+                const data = await ffmpeg.readFile("output_repair.webm");
+                // @ts-expect-error
+                const newBlob = new Blob([data as any], { type: "video/webm" });
+                if (onSave) onSave(newBlob);
+            } catch (retryErr) {
+                console.error("Retry failed:", retryErr);
+                alert("Could not process video. Please try a shorter clip or different browser.");
+            }
         } finally {
             setProcessing(false);
         }

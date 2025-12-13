@@ -59,10 +59,10 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             // Determine supported mime type
             const mimeTypes = [
-                "video/webm; codecs=vp8,opus",
+                "video/mp4", // Try native MP4 first (Safari/Chrome)
                 "video/webm; codecs=vp9,opus",
-                "video/webm",
-                "video/mp4"
+                "video/webm; codecs=vp8,opus",
+                "video/webm"
             ];
 
             const selectedMimeType = mimeTypes.find(type => MediaRecorder.isTypeSupported(type)) || "video/webm";
