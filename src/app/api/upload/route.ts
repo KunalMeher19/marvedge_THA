@@ -19,7 +19,17 @@ export async function POST(req: NextRequest) {
 
         // Get Storage Service
         const storage = getStorageService();
-        const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.webm`;
+
+        // Determine extension from original filename (if available) or default to webm
+        let extension = "webm";
+        if (file instanceof File && file.name) {
+            const parts = file.name.split('.');
+            if (parts.length > 1) {
+                extension = parts.pop() || "webm";
+            }
+        }
+
+        const filename = `${Date.now()}-${Math.random().toString(36).substring(7)}.${extension}`;
 
         // Upload file
         const url = await storage.upload(file, filename);

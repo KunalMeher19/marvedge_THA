@@ -88,9 +88,20 @@ export default function Home() {
             {uploading && (
               <div className="absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
                 <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
-                <p className="text-xl font-bold">Uploading your masterpiece...</p>
+                <p className="text-xl font-bold">Uploading...</p>
               </div>
             )}
+
+            <div className="w-full flex justify-center mb-4">
+              <a
+                href={URL.createObjectURL(recordedBlob)}
+                download="raw_recording_debug.webm"
+                className="bg-yellow-600 px-4 py-2 rounded text-white text-sm hover:bg-yellow-700"
+              >
+                DEBUG: Download Raw Recording
+              </a>
+            </div>
+
             <Editor
               inputBlob={recordedBlob}
               onSave={handleSave}
