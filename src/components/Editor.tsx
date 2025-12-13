@@ -29,36 +29,90 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
     }, []);
 
     useEffect(() => {
-        // Set initial end time when video metadata is loaded
-        if (videoRef.current && inputBlob) {
-            console.log("Editor received blob:", inputBlob.size, inputBlob.type);
-            const url = URL.createObjectURL(inputBlob);
+        // ✅ CRITICAL FIX: Wait for BOTH inputBlob AND loaded state
+        // The video element only renders after FFmpeg loads (loaded=true)
+        // So videoRef.current will be null until FFmpeg is ready
+        if (videoRef.current && inputBlob && loaded) {
+            console.log("📹 Editor received blob:", {
+                size: inputBlob.size,
+                type: inputBlob.type,
+                sizeInMB: (inputBlob.size / 1024 / 1024).toFixed(2) + " MB"
+            });
+
+            // ✅ FIX: Normalize MIME type - remove codec specification for video element
+            // Some browsers can't play "video/webm; codecs=vp9,opus" in video element
+            // but can play "video/webm"
+            const normalizedBlob = inputBlob.type.includes("webm")
+                ? new Blob([inputBlob], { type: "video/webm" })
+                : inputBlob;
+
+            console.log("🔄 Normalized blob type:", normalizedBlob.type);
+
+            const url = URL.createObjectURL(normalizedBlob);
+
+            console.log("🎬 Video src set to:", url);
+            console.log("📺 Video element exists:", !!videoRef.current);
+            console.log("📺 Video element state before:", {
+                readyState: videoRef.current.readyState,
+                networkState: videoRef.current.networkState,
+                currentSrc: videoRef.current.currentSrc
+            });
+
             videoRef.current.src = url;
+
+            console.log("📺 Video element state after src set:", {
+                src: videoRef.current.src,
+                readyState: videoRef.current.readyState,
+                networkState: videoRef.current.networkState
+            });
 
             // Force load
             videoRef.current.load();
 
+            console.log("🔄 Called video.load()");
+
             // Cleanup function for object URL
             return () => {
+                console.log("🧹 Cleaning up blob URL:", url);
                 URL.revokeObjectURL(url);
             };
+        } else {
+            console.warn("⚠️ videoRef or inputBlob or loaded missing:", {
+                hasVideoRef: !!videoRef.current,
+                hasBlob: !!inputBlob,
+                isLoaded: loaded
+            });
         }
-    }, [inputBlob]);
+    }, [inputBlob, loaded]); // ✅ Added 'loaded' dependency!
 
     const onLoadedMetadata = () => {
         if (videoRef.current) {
-            console.log("Metadata loaded. Duration:", videoRef.current.duration);
             const dur = videoRef.current.duration;
-            if (isFinite(dur)) {
+            console.log("✅ Metadata loaded! Duration:", dur + "s");
+
+            if (isFinite(dur) && dur > 0) {
                 setVideoDuration(dur);
                 setEndTime(dur);
+                console.log("📊 Video is ready for editing!");
+            } else {
+                console.error("⚠️ Invalid duration:", dur);
             }
         }
     };
 
     // Add error handler
-    const onError = (e: React.SyntheticEvent<HTMLVideoElement, Event>) => {
-        console.error("Video player error:", videoRef.current?.error, e);
+    const onError = () => {
+        const error = videoRef.current?.error;
+        console.error("❌ Video player error:", {
+            code: error?.code,
+            message: error?.message,
+            MEDIA_ERR_ABORTED: error?.code === 1,
+            MEDIA_ERR_NETWORK: error?.code === 2,
+            MEDIA_ERR_DECODE: error?.code === 3,
+            MEDIA_ERR_SRC_NOT_SUPPORTED: error?.code === 4,
+        });
+
+        setErrorMsg(`Video Error Code ${error?.code}: ${error?.message || "Unknown error"}`);
     };
 
     const load = async () => {
@@ -176,11 +230,16 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                             preload="auto"
                             className="w-full h-full"
                             onLoadedMetadata={onLoadedMetadata}
-                            onError={(e) => {
-                                const err = (e.target as HTMLVideoElement).error;
-                                setErrorMsg(`Video Error: ${err?.code} - ${err?.message}`);
-                                onError(e);
+                            onLoadStart={() => console.log("🎥 onLoadStart - Video started loading")}
+                            onLoadedData={() => console.log("📦 onLoadedData - First frame loaded")}
+                            onCanPlay={() => console.log("▶️ onCanPlay - Video can start playing")}
+                            onCanPlayThrough={() => console.log("✨ onCanPlayThrough - Video can play without buffering")}
+                            onError={() => {
+                                onError();
                             }}
+                            onWaiting={() => console.log("⏳ onWaiting - Waiting for data")}
+                            onSuspend={() => console.log("⏸️ onSuspend - Loading suspended")}
+                            onStalled={() => console.log("🛑 onStalled - Loading stalled")}
                         />
                         {errorMsg && (
                             <div className="absolute top-0 left-0 bg-red-600/90 text-white p-2 text-xs">

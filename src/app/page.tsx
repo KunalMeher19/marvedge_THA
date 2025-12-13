@@ -9,9 +9,12 @@ export default function Home() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
 
   const handleRecordingComplete = (blob: Blob) => {
+    console.log("🎬 Recording complete! Blob details:", {
+      size: blob.size,
+      type: blob.type,
+      sizeInMB: (blob.size / 1024 / 1024).toFixed(2) + " MB"
+    });
     setRecordedBlob(blob);
-    // Switch to editing view (TODO)
-    console.log("Recording complete, blob size:", blob.size);
   };
 
   const [uploading, setUploading] = useState(false);
