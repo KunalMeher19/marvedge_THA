@@ -76,68 +76,42 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
         try {
             const inputName = "input.webm";
-            const outputName = "output.mp4";
-
             await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
 
-            // Process video
-            const duration = endTime - startTime;
+            console.log("Starting trim with stream copy...");
 
-            console.log("Starting transcoding. Input:", inputBlob.type, inputBlob.size);
+            await ffmpeg.exec([
+                "-i", inputName,
+                "-ss", startTime.toString(),
+                "-to", endTime.toString(),
+                "-c", "copy",
+                "output.webm"
+            ]);
 
-            try {
-                // Attempt 1: Try standard H.264 encoding (Best for MP4)
-                console.log("Attempting H.264 encoding...");
-                await ffmpeg.exec([
-                    "-i", inputName,
-                    "-ss", startTime.toString(),
-                    "-t", duration.toString(),
-                    "-c:v", "libx264",
-                    "-preset", "ultrafast",
-                    "-pix_fmt", "yuv420p", // Critical for broad compatibility (Windows/QuickTime)
-                    "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2", // Fix odd dimensions for H.264
-                    "-c:a", "aac",
-                    outputName
-                ]);
-            } catch (e) {
-                console.warn("H.264 encoding failed, trying MPEG4...", e);
-                try {
-                    // Attempt 2: Try MPEG4 encoding (Older but standard MP4)
-                    await ffmpeg.exec([
-                        "-i", inputName,
-                        "-ss", startTime.toString(),
-                        "-t", duration.toString(),
-                        "-c:v", "mpeg4",
-                        "-vf", "scale=trunc(iw/2)*2:trunc(ih/2)*2",
-                        "-c:a", "aac",
-                        outputName
-                    ]);
-                } catch (e2) {
-                    console.warn("MPEG4 encoding failed, falling back to WebM copy...", e2);
-                    // Attempt 3: Fallback to WebM (VP8/VP9) if MP4 fails completely
-                    await ffmpeg.exec([
-                        "-i", "input.webm",
-                        "-ss", startTime.toString(),
-                        "-t", duration.toString(),
-                        "-c:v", "copy",
-                        "-c:a", "copy",
-                        "output.webm"
-                    ]);
-                    const data = await ffmpeg.readFile("output.webm");
-                    const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
-                    if (onSave) onSave(newBlob);
-                    return;
-                }
-            }
-
-            const data = await ffmpeg.readFile(outputName);
-            const newBlob = new Blob([data as unknown as BlobPart], { type: "video/mp4" });
+            const data = await ffmpeg.readFile("output.webm");
+            const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
 
             if (onSave) onSave(newBlob);
-
         } catch (err) {
-            console.error("Trim/Transcode fatal error:", err);
-            alert("Could not process video. Try a shorter clip or refresh.");
+            console.error("Trim error:", err);
+            // Fallback: If strict copy fails (rare keyframe issues), try re-encode with VP8 (supported)
+            try {
+                console.warn("Copy failed, attempting VP8 re-encode...");
+                await ffmpeg.exec([
+                    "-i", "input.webm",
+                    "-ss", startTime.toString(),
+                    "-to", endTime.toString(),
+                    "-c:v", "libvpx",
+                    "-c:a", "libvorbis",
+                    "output.webm"
+                ]);
+                const data = await ffmpeg.readFile("output.webm");
+                const newBlob = new Blob([data as unknown as BlobPart], { type: "video/webm" });
+                if (onSave) onSave(newBlob);
+            } catch (retryErr) {
+                console.error("Retry failed:", retryErr);
+                alert("Could not trim video. Please try recording again.");
+            }
         } finally {
             setProcessing(false);
         }
@@ -172,6 +146,7 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                             ref={videoRef}
                             controls
                             playsInline
+                            muted
                             preload="auto"
                             className="w-full h-full"
                             onLoadedMetadata={onLoadedMetadata}
