@@ -17,12 +17,24 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
     const mediaRecorderRef = useRef<MediaRecorder | null>(null);
     const videoPreviewRef = useRef<HTMLVideoElement>(null);
-    const timerIntervalRef = useRef<NodeJS.Timeout | null>(null);
     const chunksRef = useRef<Blob[]>([]); // Use ref for chunks
 
+    // Timer Logic
+    useEffect(() => {
+        let interval: NodeJS.Timeout | undefined;
+        if (isRecording && !isPaused) {
+            interval = setInterval(() => {
+                setDuration((prev) => prev + 1);
+            }, 1000);
+        }
+        return () => {
+            if (interval) clearInterval(interval);
+        };
+    }, [isRecording, isPaused]);
+
+    // Stream Cleanup
     useEffect(() => {
         return () => {
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
             if (stream) {
                 stream.getTracks().forEach((track) => track.stop());
             }
@@ -33,7 +45,8 @@ export default function Recorder({ onComplete }: RecorderProps) {
     const startRecording = async () => {
         try {
             setPermissionError(null);
-            chunksRef.current = []; // Reset chunks
+            chunksRef.current = [];
+            setDuration(0);
 
             const videoStream = await navigator.mediaDevices.getDisplayMedia({
                 video: true,
@@ -75,7 +88,7 @@ export default function Recorder({ onComplete }: RecorderProps) {
             mediaRecorderRef.current = mediaRecorder;
 
             mediaRecorder.ondataavailable = (event) => {
-                console.log("Data chunk available:", event.data.size);
+                console.log("Chunk:", event.data.size);
                 if (event.data.size > 0) {
                     chunksRef.current.push(event.data);
                 }
@@ -83,17 +96,14 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
             mediaRecorder.onstop = () => {
                 const blob = new Blob(chunksRef.current, { type: selectedMimeType });
-                console.log("Recording stopped. Total chunks:", chunksRef.current.length, "Blob size:", blob.size);
+                console.log("Stop. Chunks:", chunksRef.current.length, "Size:", blob.size);
 
                 if (blob.size === 0) {
-                    alert("Recording failed: No data was captured. Please ensure you selected a valid screen/window.");
+                    alert("Recording failed: No data captured.");
                     return;
                 }
 
-                if (onComplete) {
-                    onComplete(blob);
-                }
-
+                if (onComplete) onComplete(blob);
                 chunksRef.current = [];
                 setDuration(0);
             };
@@ -102,37 +112,25 @@ export default function Recorder({ onComplete }: RecorderProps) {
             setIsRecording(true);
             setIsPaused(false);
 
-            // Start Timer
-            timerIntervalRef.current = setInterval(() => {
-                setDuration((prev) => prev + 1);
-            }, 1000);
-
             // Handle stream stop (user clicks "Stop sharing" native browser UI)
             videoStream.getVideoTracks()[0].onended = () => {
                 stopRecording();
             };
 
         } catch (err: unknown) {
-            console.error("Error starting recording:", err);
-            // @ts-expect-error - err is unknown but likely Error in DOM context
-            if (err.name === "NotAllowedError") {
-                setPermissionError("Screen recording permission denied. Please allow access to record.");
-            } else {
-                // @ts-expect-error - err is unknown but usually has message
-                setPermissionError("Could not start recording. " + err.message);
-            }
+            console.error("Start error:", err);
+            // @ts-expect-error
+            setPermissionError(err.message || "Failed to start");
         }
     };
 
     const stopRecording = () => {
         if (mediaRecorderRef.current && isRecording) {
             mediaRecorderRef.current.stop();
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
-
+            // Cleanup stream tracks
             if (stream) {
-                stream.getTracks().forEach((track) => track.stop());
+                stream.getTracks().forEach(track => track.stop());
             }
-
             setIsRecording(false);
             setIsPaused(false);
             setStream(null);
@@ -144,13 +142,9 @@ export default function Recorder({ onComplete }: RecorderProps) {
 
         if (isPaused) {
             mediaRecorderRef.current.resume();
-            timerIntervalRef.current = setInterval(() => {
-                setDuration((prev) => prev + 1);
-            }, 1000);
             setIsPaused(false);
         } else {
             mediaRecorderRef.current.pause();
-            if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
             setIsPaused(true);
         }
     };
