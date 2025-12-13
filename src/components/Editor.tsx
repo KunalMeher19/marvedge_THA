@@ -96,6 +96,36 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                 console.log("📊 Video is ready for editing!");
             } else {
                 console.error("⚠️ Invalid duration:", dur);
+
+                // ✅ WORKAROUND: For WebM videos with Infinity duration
+                // Seek to end to force browser to calculate duration
+                if (dur === Infinity || !isFinite(dur)) {
+                    console.log("🔄 Attempting to fix Infinity duration by seeking...");
+
+                    // Listen for seeked event
+                    const handleSeeked = () => {
+                        if (videoRef.current) {
+                            const actualDuration = videoRef.current.currentTime;
+                            console.log("✅ Found actual duration:", actualDuration + "s");
+
+                            if (actualDuration > 0) {
+                                setVideoDuration(actualDuration);
+                                setEndTime(actualDuration);
+
+                                // Reset to beginning
+                                videoRef.current.currentTime = 0;
+                                console.log("📊 Video is ready for editing!");
+                            }
+
+                            videoRef.current.removeEventListener('seeked', handleSeeked);
+                        }
+                    };
+
+                    videoRef.current.addEventListener('seeked', handleSeeked);
+
+                    // Seek to a very large time - browser will clamp to actual end
+                    videoRef.current.currentTime = 1e10; // 10 billion seconds
+                }
             }
         }
     };
