@@ -63,6 +63,11 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
     const load = async () => {
         try {
             const ffmpegInstance = await FFmpegService.load();
+
+            ffmpegInstance.on("log", ({ message }) => {
+                console.log("[FFmpeg]", message);
+            });
+
             setFFmpeg(ffmpegInstance);
             setLoaded(true);
         } catch (e) {
@@ -72,13 +77,20 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
     const handleTrim = async () => {
         if (!ffmpeg || !loaded) return;
+
+        // Validation
+        if (endTime <= startTime || endTime === 0) {
+            alert("Invalid trim duration. Please adjust the sliders.");
+            return;
+        }
+
         setProcessing(true);
 
         try {
             const inputName = "input.webm";
             await ffmpeg.writeFile(inputName, await fetchFile(inputBlob));
 
-            console.log("Starting trim with stream copy...");
+            console.log("Starting trim with stream copy...", startTime, endTime);
 
             await ffmpeg.exec([
                 "-i", inputName,
@@ -216,30 +228,46 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
                         </div>
                     </div>
 
-                    <div className="flex justify-end gap-3 pt-4 border-t border-gray-800">
+                    <div className="flex justify-between items-center pt-4 border-t border-gray-800">
+                        {/* DEBUG DOWNLOAD */}
                         <button
-                            onClick={onCancel}
-                            className="px-4 py-2 text-gray-400 hover:text-white"
+                            onClick={() => {
+                                if (!videoRef.current?.src) return;
+                                const a = document.createElement("a");
+                                a.href = videoRef.current.src;
+                                a.download = "debug_trimmed.webm";
+                                a.click();
+                            }}
+                            className="text-xs text-yellow-500 hover:text-yellow-400 underline"
                         >
-                            Cancel
+                            (Debug) Download Trimmed
                         </button>
-                        <button
-                            onClick={handleTrim}
-                            disabled={processing}
-                            className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
-                        >
-                            {processing ? (
-                                <>
-                                    <Loader2 className="w-4 h-4 animate-spin" />
-                                    Processing...
-                                </>
-                            ) : (
-                                <>
-                                    <Save className="w-4 h-4" />
-                                    Save Changes
-                                </>
-                            )}
-                        </button>
+
+                        <div className="flex gap-3">
+                            <button
+                                onClick={onCancel}
+                                className="px-4 py-2 text-gray-400 hover:text-white"
+                            >
+                                Cancel
+                            </button>
+                            <button
+                                onClick={handleTrim}
+                                disabled={processing}
+                                className="px-6 py-2 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50"
+                            >
+                                {processing ? (
+                                    <>
+                                        <Loader2 className="w-4 h-4 animate-spin" />
+                                        Processing...
+                                    </>
+                                ) : (
+                                    <>
+                                        <Save className="w-4 h-4" />
+                                        Save Changes
+                                    </>
+                                )}
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}

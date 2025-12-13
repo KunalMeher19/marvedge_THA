@@ -22,7 +22,12 @@ export default function Home() {
     try {
       const formData = new FormData();
       const ext = blob.type.includes("webm") ? "webm" : "mp4";
-      formData.append("file", blob, `recording.${ext}`);
+      const filename = `recording.${ext}`;
+      // Explicitly create file to guarantee type and name props
+      const file = new File([blob], filename, { type: blob.type });
+
+      console.log("Uploading file:", file.name, file.type, file.size);
+      formData.append("file", file);
       // Estimate duration or pass it if Editor provides it
       // For now, simple blob size approximation or we update Editor to pass duration.
       // Let's just send 0 or calculated in backend if possible (backend doesn't fully parse yet).
