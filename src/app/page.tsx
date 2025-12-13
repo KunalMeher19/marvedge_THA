@@ -3,6 +3,7 @@
 import { useState } from "react";
 import Recorder from "@/components/Recorder";
 import { Film } from "lucide-react";
+import Editor from "@/components/Editor";
 
 export default function Home() {
   const [recordedBlob, setRecordedBlob] = useState<Blob | null>(null);
@@ -11,6 +12,41 @@ export default function Home() {
     setRecordedBlob(blob);
     // Switch to editing view (TODO)
     console.log("Recording complete, blob size:", blob.size);
+  };
+
+  const [uploading, setUploading] = useState(false);
+  // const [uploadSuccess, setUploadSuccess] = useState<string | null>(null);
+
+  const handleSave = async (blob: Blob) => {
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append("file", blob, "recording.webm");
+      // Estimate duration or pass it if Editor provides it
+      // For now, simple blob size approximation or we update Editor to pass duration.
+      // Let's just send 0 or calculated in backend if possible (backend doesn't fully parse yet).
+      // Ideally Editor props should include duration.
+
+      const res = await fetch("/api/upload", {
+        method: "POST",
+        body: formData,
+      });
+
+      const data = await res.json();
+
+      if (data.success) {
+        // setUploadSuccess(data.video.id);
+        // Maybe redirect to share page?
+        window.location.href = `/share/${data.video.id}`;
+      } else {
+        alert("Upload failed: " + data.error);
+      }
+    } catch (e) {
+      console.error(e);
+      alert("Upload failed");
+    } finally {
+      setUploading(false);
+    }
   };
 
   return (
@@ -48,16 +84,18 @@ export default function Home() {
             */}
           </div>
         ) : (
-          <div className="text-center">
-            <h2 className="text-2xl font-bold mb-4">Video Captured!</h2>
-            <p className="text-gray-400">Editor coming next...</p>
-            {/* Temporary reset for dev */}
-            <button
-              onClick={() => setRecordedBlob(null)}
-              className="mt-4 px-4 py-2 bg-gray-700 rounded hover:bg-gray-600"
-            >
-              Record Again
-            </button>
+          <div className="flex flex-col items-center w-full relative">
+            {uploading && (
+              <div className="absolute inset-0 z-50 bg-black/80 flex flex-col items-center justify-center">
+                <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-white mb-4"></div>
+                <p className="text-xl font-bold">Uploading your masterpiece...</p>
+              </div>
+            )}
+            <Editor
+              inputBlob={recordedBlob}
+              onSave={handleSave}
+              onCancel={() => setRecordedBlob(null)}
+            />
           </div>
         )}
       </div>

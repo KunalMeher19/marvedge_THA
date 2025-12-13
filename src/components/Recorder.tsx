@@ -2,7 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { cn } from "@/lib/utils";
-import { Pause, Play, Square, Video, Mic } from "lucide-react";
+import { Pause, Play, Square, Video } from "lucide-react";
 
 interface RecorderProps {
     onComplete?: (blob: Blob) => void;
@@ -104,11 +104,13 @@ export default function Recorder({ onComplete }: RecorderProps) {
                 stopRecording();
             };
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error starting recording:", err);
+            // @ts-expect-error - err is unknown but likely Error in DOM context
             if (err.name === "NotAllowedError") {
                 setPermissionError("Screen recording permission denied. Please allow access to record.");
             } else {
+                // @ts-expect-error - err is unknown but usually has message
                 setPermissionError("Could not start recording. " + err.message);
             }
         }
