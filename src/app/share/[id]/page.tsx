@@ -113,10 +113,11 @@ export default function VideoPage() {
                 <div className="relative aspect-video bg-gray-900 rounded-xl overflow-hidden border border-gray-800 shadow-2xl">
                     <video
                         ref={videoRef}
-                        src={currentVideo.url}
+                        src={`/api/videos/${id}/stream`}
                         controls
                         className="w-full h-full"
                         onTimeUpdate={handleTimeUpdate}
+                        crossOrigin="anonymous"
                     />
                 </div>
 
