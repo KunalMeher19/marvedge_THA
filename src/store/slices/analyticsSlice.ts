@@ -1,4 +1,4 @@
-import { createSlice, createAsyncThunk, PayloadAction } from '@reduxjs/toolkit';
+import { createSlice, createAsyncThunk, PayloadAction, createSelector } from '@reduxjs/toolkit';
 import type { RootState } from '..';
 
 interface AnalyticsState {
@@ -46,21 +46,26 @@ const analyticsSlice = createSlice({
     },
 });
 
-// Selectors
-export const selectAverageCompletion = (state: RootState): number => {
-    const completionData = state.video.currentVideo?.completionData || [];
-    if (completionData.length === 0) return 0;
+// Base selector for completion data
+const selectCompletionData = (state: RootState) =>
+    state.video.currentVideo?.completionData || [];
 
-    const sum = completionData.reduce((acc: number, val: number) => acc + val, 0);
-    return Math.round(sum / completionData.length);
-};
+// Memoized selector for average completion
+export const selectAverageCompletion = createSelector(
+    [selectCompletionData],
+    (completionData) => {
+        if (completionData.length === 0) return 0;
+        const sum = completionData.reduce((acc: number, val: number) => acc + val, 0);
+        return Math.round(sum / completionData.length);
+    }
+);
 
-export const selectCompletionStats = (state: RootState) => {
-    const completionData = state.video.currentVideo?.completionData || [];
-
-    return {
+// Memoized selector for completion statistics
+export const selectCompletionStats = createSelector(
+    [selectCompletionData, selectAverageCompletion],
+    (completionData, averageCompletion) => ({
         totalCompletions: completionData.length,
-        averageCompletion: selectAverageCompletion(state),
+        averageCompletion,
         completeViews: completionData.filter((val: number) => val === 100).length,
         distribution: {
             '0-25%': completionData.filter((val: number) => val > 0 && val <= 25).length,
@@ -68,8 +73,8 @@ export const selectCompletionStats = (state: RootState) => {
             '50-75%': completionData.filter((val: number) => val > 50 && val <= 75).length,
             '75-100%': completionData.filter((val: number) => val > 75 && val <= 100).length,
         },
-    };
-};
+    })
+);
 
 export const { setProgress, addTrackedMilestone, resetAnalytics } = analyticsSlice.actions;
 export default analyticsSlice.reducer;
