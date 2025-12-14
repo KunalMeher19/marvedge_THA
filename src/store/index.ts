@@ -1,6 +1,10 @@
 import { configureStore } from '@reduxjs/toolkit';
+import { enableMapSet } from 'immer';
 import videoReducer from './slices/videoSlice';
 import analyticsReducer from './slices/analyticsSlice';
+
+// Enable Immer support for Map and Set
+enableMapSet();
 
 export const store = configureStore({
     reducer: {
