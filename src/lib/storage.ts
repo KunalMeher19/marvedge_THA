@@ -31,8 +31,24 @@ export class LocalFileSystemAdapter implements IStorageService {
     }
 }
 
-// Factory or Singleton to get the service
-// Allows easy swap to S3Adapter later
+// Factory to get the appropriate storage service
 export function getStorageService(): IStorageService {
+    // Use Cloudflare R2 in production when configured
+    if (process.env.NODE_ENV === 'production' && process.env.R2_ENDPOINT) {
+        try {
+            // Dynamic import to avoid loading R2 adapter in development
+            // eslint-disable-next-line @typescript-eslint/no-require-imports
+            const { CloudflareR2Adapter } = require('./storage/r2');
+            console.log('📦 Using Cloudflare R2 for video storage');
+            return new CloudflareR2Adapter();
+        } catch (error) {
+            console.error('❌ Failed to load R2 adapter:', error);
+            console.warn('⚠️  Falling back to local filesystem storage');
+            return new LocalFileSystemAdapter();
+        }
+    }
+
+    // Use local filesystem in development or when R2 is not configured
+    console.log('💾 Using local filesystem for video storage (development mode)');
     return new LocalFileSystemAdapter();
 }

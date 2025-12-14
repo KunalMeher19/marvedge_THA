@@ -16,8 +16,10 @@ A modern, browser-based screen recording application built with Next.js, handlin
 - **Language**: TypeScript
 - **Styling**: Tailwind CSS, Lucide React (Icons)
 - **Video Processing**: FFmpeg.wasm
-- **Storage**: Local filesystem (Mocked S3 behavior via abstraction layer)
-- **Database**: MongoDB (Mongoose)
+- **Storage**: Cloudflare R2 (Production) / Local Filesystem (Development)
+- **Database**: MongoDB Atlas (via Mongoose)
+- **State Management**: Redux Toolkit
+- **Deployment**: Vercel
 
 ## 📂 Project Structure
 
@@ -56,6 +58,19 @@ A modern, browser-based screen recording application built with Next.js, handlin
 3.  **Open Application**
     Visit `http://localhost:3000` to start recording.
 
+## 🚀 Deployment
+
+Ready to deploy to production? See the [**Complete Deployment Guide**](./DEPLOY.md) for step-by-step instructions.
+
+**Deployment Stack (100% FREE):**
+- **Vercel** - Hosting
+- **Cloudflare R2** - Video storage (10 GB free)
+- **MongoDB Atlas** - Database (512 MB free)
+
+**Cost: $0/month** ✨
+
+For cost details, see the [Cloudflare R2 pricing analysis](./artifacts/cloudflare_costs.md).
+
 ## 📊 Architecture Deep Dive
 
 ### Video Pipeline
@@ -86,8 +101,8 @@ Design decisions were optimized for:
 
 -   **MediaRecorder API**: chosen for native browser capture, reducing dependency overhead.
 -   **ffmpeg.wasm**: handles video processing client-side to spare server CPU resources and lower costs.
--   **File-based DB**: selected for portability and simplicity in this MVP, but designed with a service layer that can easily swap to Postgres/SQL.
--   **Storage**: currently local, but the storage interface allows for easy migration to AWS S3 or Cloudflare R2.
+-   **MongoDB Atlas**: scalable NoSQL database with free tier perfect for MVP, stores video metadata and analytics.
+-   **Cloudflare R2**: production video storage with S3-compatible API and **zero egress fees** (unlike AWS S3). Development uses local filesystem for faster iteration.
 
 
 

@@ -24,15 +24,19 @@ async function dbConnect() {
     }
 
     if (!MONGODB_URI) {
-        // Fallback for MVP if no URI provided? Or throw?
-        // For this assignment, user asked for MongoDB.
-        // I'll log a warning and return null or throw.
-        console.warn("Please define the MONGODB_URI environment variable inside .env.local");
-        // throw new Error("Please define the MONGODB_URI environment variable inside .env.local");
-        // For fail-safe in local dev without env, maybe connect to localhost?
-        // return mongoose.connect("mongodb://localhost:27017/marvedge");
+        // In production, fail fast if MongoDB is not configured
+        if (process.env.NODE_ENV === 'production') {
+            throw new Error(
+                "MONGODB_URI is not defined. Please add it to your environment variables in Vercel."
+            );
+        }
+
+        // In development, warn and use localhost fallback
+        console.warn("⚠️  MONGODB_URI not defined. Using localhost fallback for development.");
+        console.warn("   For production deployment, please set MONGODB_URI in your .env.local file.");
     }
 
+    // Use provided URI or fallback to localhost in development
     const uri = MONGODB_URI || "mongodb://127.0.0.1:27017/marvedge_mvp";
 
     if (!cached.promise) {
@@ -40,8 +44,14 @@ async function dbConnect() {
             bufferCommands: false,
         };
 
+        console.log(`🔗 Connecting to MongoDB${MONGODB_URI ? ' (Atlas)' : ' (localhost)'}...`);
+
         cached.promise = mongoose.connect(uri, opts).then((mongoose) => {
+            console.log("✅ MongoDB connected successfully");
             return mongoose;
+        }).catch((error) => {
+            console.error("❌ MongoDB connection failed:", error.message);
+            throw error;
         });
     }
     cached.conn = await cached.promise;
