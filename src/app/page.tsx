@@ -43,7 +43,11 @@ export default function Home() {
 
       const data = await res.json();
 
+      console.log("📦 Upload response:", data);
+
       if (data.success) {
+        console.log("✅ Upload successful! Video ID:", data.video.id);
+        console.log("📹 Video URL:", data.video.url);
         // setUploadSuccess(data.video.id);
         // Maybe redirect to share page?
         window.location.href = `/share/${data.video.id}`;

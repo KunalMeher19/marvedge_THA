@@ -109,6 +109,39 @@ Deploy your screen recording app to production using **100% FREE** services!
 
 **Save all 3 values!**
 
+### 2.5 Configure CORS (CRITICAL for Video Playback)
+
+1. In your bucket settings, stay on the **Settings** tab
+2. Scroll down to **CORS Policy**
+3. Click **Add CORS Policy** or **Edit**
+4. Paste this configuration:
+
+```json
+[
+  {
+    "AllowedOrigins": ["*"],
+    "AllowedMethods": ["GET", "HEAD"],
+    "AllowedHeaders": ["*"],
+    "ExposeHeaders": [
+      "ETag",
+      "Content-Length",
+      "Content-Type",
+      "Accept-Ranges",
+      "Content-Range"
+    ],
+    "MaxAgeSeconds": 3600
+  }
+]
+```
+
+5. Click **Save**
+
+> [!IMPORTANT]
+> **Without CORS configuration**, videos won't play on your site! This allows your Vercel deployment to load videos from R2.
+
+> [!TIP]
+> For production, replace `"*"` with your actual Vercel domain (e.g., `"https://your-app.vercel.app"`) for better security.
+
 ---
 
 ## Step 3: Vercel Deployment - 5 min

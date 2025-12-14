@@ -25,6 +25,8 @@ export default function VideoPage() {
     useEffect(() => {
         if (!id) return;
 
+        console.log("🔍 Share page - Loading video with ID:", id);
+
         // Fetch video data into Redux store
         dispatch(fetchVideo(id));
 
@@ -36,6 +38,19 @@ export default function VideoPage() {
         }
 
     }, [id, dispatch]);
+
+    // Log when currentVideo changes
+    useEffect(() => {
+        if (currentVideo) {
+            console.log("📹 Current video loaded:", {
+                id: currentVideo._id,
+                title: currentVideo.title,
+                url: currentVideo.url,
+                views: currentVideo.views,
+                duration: currentVideo.duration
+            });
+        }
+    }, [currentVideo]);
 
     const handleTimeUpdate = () => {
         if (!videoRef.current || !id) return;
