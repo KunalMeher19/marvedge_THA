@@ -177,9 +177,10 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
 
             console.log("Starting trim with stream copy...", startTime, endTime);
 
+            // ✅ FIX: Move -ss BEFORE -i for accurate input seeking (prevents frozen frames)
             await ffmpeg.exec([
-                "-i", inputName,
                 "-ss", startTime.toString(),
+                "-i", inputName,
                 "-to", endTime.toString(),
                 "-c", "copy",
                 "output.webm"
@@ -200,9 +201,10 @@ export default function Editor({ inputBlob, onSave, onCancel }: EditorProps) {
             // Fallback: If strict copy fails (rare keyframe issues), try re-encode with VP8 (supported)
             try {
                 console.warn("Copy failed, attempting VP8 re-encode...");
+                // ✅ FIX: Move -ss BEFORE -i for accurate input seeking
                 await ffmpeg.exec([
-                    "-i", "input.webm",
                     "-ss", startTime.toString(),
+                    "-i", "input.webm",
                     "-to", endTime.toString(),
                     "-c:v", "libvpx",
                     "-c:a", "libvorbis",
